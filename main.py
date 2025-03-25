@@ -4,12 +4,14 @@ from pydantic import BaseModel
 import uuid
 import json
 import os
-import openai
+from openai import OpenAI  # Neue Syntax
 
 app = FastAPI()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 user_documents = {}
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 class UploadPayload(BaseModel):
     user_id: str
@@ -42,7 +44,7 @@ async def upload_document(request: Request):
 
     return {"status": "ok", "doc_id": doc_id}
 
-# 🔹 /embed – Text in Embeddings umwandeln
+# 🔹 /embed – Text in Embeddings umwandeln (neue OpenAI-API)
 @app.post("/embed")
 async def generate_embedding(request: Request):
     try:
@@ -52,13 +54,12 @@ async def generate_embedding(request: Request):
         if not text:
             return {"status": "error", "message": "Kein Text übergeben."}
 
-        openai.api_key = OPENAI_API_KEY
-        response = openai.Embedding.create(
+        response = client.embeddings.create(
             model="text-embedding-3-small",
             input=text
         )
 
-        embedding = response["data"][0]["embedding"]
+        embedding = response.data[0].embedding
 
         return {
             "status": "ok",
