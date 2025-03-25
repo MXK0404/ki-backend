@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
 from typing import Optional
+from pydantic import BaseModel
 import uuid
+import json
 
 app = FastAPI()
 
@@ -16,31 +17,30 @@ class UploadPayload(BaseModel):
 @app.post("/upload")
 async def upload_document(request: Request):
     try:
-        # Versuche, JSON sauber zu laden (auch mit Sonderzeichen)
-        data = await request.json()
-    except Exception as e:
-        return {"status": "error", "message": f"Invalid JSON: {str(e)}"}
+        # Lies rohen Body als Text (nicht als JSON!)
+        body_bytes = await request.body()
+        body_str = body_bytes.decode("utf-8", "ignore")
 
-    try:
-        # Versuche, das JSON in das Pydantic-Modell zu laden
+        # Jetzt selbst JSON parsen
+        data = json.loads(body_str)
+
+        # Nutze Pydantic zum Validieren
         payload = UploadPayload(**data)
-    except Exception as e:
-        return {"status": "error", "message": f"Validation failed: {str(e)}"}
 
-    # Fallbacks
+    except Exception as e:
+        return {"status": "error", "message": f"Parsing failed: {str(e)}"}
+
     doc_id = str(uuid.uuid4())
+
     if payload.user_id not in user_documents:
         user_documents[payload.user_id] = []
-
-    # Bereinige Inhalt vorsichtshalber nochmals (optional)
-    safe_content = payload.content.encode("utf-8", "ignore").decode("utf-8")
-    source = payload.source_name or "unbenannt"
 
     user_documents[payload.user_id].append({
         "doc_id": doc_id,
         "type": payload.doc_type,
-        "source": source,
-        "content": safe_content
+        "source": payload.source_name or "unbenannt",
+        "content": payload.content
     })
 
     return {"status": "ok", "doc_id": doc_id}
+
